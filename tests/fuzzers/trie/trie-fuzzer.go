@@ -21,7 +21,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -67,6 +68,7 @@ func newDataSource(input []byte) *dataSource {
 		input, bytes.NewReader(input),
 	}
 }
+
 func (ds *dataSource) readByte() byte {
 	if b, err := ds.reader.ReadByte(); err != nil {
 		return 0
@@ -74,9 +76,11 @@ func (ds *dataSource) readByte() byte {
 		return b
 	}
 }
+
 func (ds *dataSource) Read(buf []byte) (int, error) {
 	return ds.reader.Read(buf)
 }
+
 func (ds *dataSource) Ended() bool {
 	return ds.reader.Len() == 0
 }
@@ -117,15 +121,14 @@ func Generate(input []byte) randTest {
 	return steps
 }
 
-// Fuzz is the fuzzing entry-point.
 // The function must return
+// 1 if the fuzzer should increase priority of the
 //
-//   - 1 if the fuzzer should increase priority of the
-//     given input during subsequent fuzzing (for example, the input is lexically
-//     correct and was parsed successfully);
-//   - -1 if the input must not be added to corpus even if gives new coverage; and
-//   - 0 otherwise
+//	given input during subsequent fuzzing (for example, the input is lexically
+//	correct and was parsed successfully);
 //
+// -1 if the input must not be added to corpus even if gives new coverage; and
+// 0  otherwise
 // other values are reserved for future use.
 func Fuzz(input []byte) int {
 	program := Generate(input)
@@ -139,7 +142,7 @@ func Fuzz(input []byte) int {
 }
 
 func runRandTest(rt randTest) error {
-	triedb := trie.NewDatabase(rawdb.NewMemoryDatabase())
+	triedb := trie.NewDatabase(memorydb.New())
 
 	tr := trie.NewEmpty(triedb)
 	values := make(map[string]string) // tracks content of the trie
@@ -170,7 +173,7 @@ func runRandTest(rt randTest) error {
 					return err
 				}
 			}
-			newtr, err := trie.New(trie.TrieID(hash), triedb)
+			newtr, err := trie.New(common.Hash{}, hash, triedb)
 			if err != nil {
 				return err
 			}

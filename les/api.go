@@ -67,7 +67,7 @@ func (api *LightServerAPI) ServerInfo() map[string]interface{} {
 	res["maximumCapacity"] = api.server.maxCapacity
 	_, res["totalCapacity"] = api.server.clientPool.Limits()
 	_, res["totalConnectedCapacity"] = api.server.clientPool.Active()
-	res["priorityConnectedCapacity"] = 0 //TODO connect when token sale module is added
+	res["priorityConnectedCapacity"] = 0 // TODO connect when token sale module is added
 	return res
 }
 
@@ -382,7 +382,7 @@ func (api *LightAPI) LatestCheckpoint() ([4]string, error) {
 	return res, nil
 }
 
-// GetCheckpoint returns the specific local checkpoint package.
+// GetLocalCheckpoint returns the specific local checkpoint package.
 //
 // The checkpoint package consists of 3 strings:
 //

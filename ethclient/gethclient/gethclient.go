@@ -19,7 +19,6 @@ package gethclient
 
 import (
 	"context"
-	"encoding/json"
 	"math/big"
 	"runtime"
 	"runtime/debug"
@@ -119,6 +118,15 @@ func (ec *Client) GetProof(ctx context.Context, account common.Address, keys []s
 	return &result, err
 }
 
+// OverrideAccount specifies the state of an account to be overridden.
+type OverrideAccount struct {
+	Nonce     uint64                      `json:"nonce"`
+	Code      []byte                      `json:"code"`
+	Balance   *big.Int                    `json:"balance"`
+	State     map[common.Hash]common.Hash `json:"state"`
+	StateDiff map[common.Hash]common.Hash `json:"stateDiff"`
+}
+
 // CallContract executes a message call transaction, which is directly executed in the VM
 // of the node, but never mined into the blockchain.
 //
@@ -133,7 +141,7 @@ func (ec *Client) CallContract(ctx context.Context, msg ethereum.CallMsg, blockN
 	var hex hexutil.Bytes
 	err := ec.c.CallContext(
 		ctx, &hex, "eth_call", toCallArg(msg),
-		toBlockNumArg(blockNumber), overrides,
+		toBlockNumArg(blockNumber), toOverrideMap(overrides),
 	)
 	return hex, err
 }
@@ -166,12 +174,7 @@ func (ec *Client) GetNodeInfo(ctx context.Context) (*p2p.NodeInfo, error) {
 	return &result, err
 }
 
-// SubscribeFullPendingTransactions subscribes to new pending transactions.
-func (ec *Client) SubscribeFullPendingTransactions(ctx context.Context, ch chan<- *types.Transaction) (*rpc.ClientSubscription, error) {
-	return ec.c.EthSubscribe(ctx, ch, "newPendingTransactions", true)
-}
-
-// SubscribePendingTransactions subscribes to new pending transaction hashes.
+// SubscribePendingTransactions subscribes to new pending transactions.
 func (ec *Client) SubscribePendingTransactions(ctx context.Context, ch chan<- common.Hash) (*rpc.ClientSubscription, error) {
 	return ec.c.EthSubscribe(ctx, ch, "newPendingTransactions")
 }
@@ -183,14 +186,6 @@ func toBlockNumArg(number *big.Int) string {
 	pending := big.NewInt(-1)
 	if number.Cmp(pending) == 0 {
 		return "pending"
-	}
-	finalized := big.NewInt(int64(rpc.FinalizedBlockNumber))
-	if number.Cmp(finalized) == 0 {
-		return "finalized"
-	}
-	safe := big.NewInt(int64(rpc.SafeBlockNumber))
-	if number.Cmp(safe) == 0 {
-		return "safe"
 	}
 	return hexutil.EncodeBig(number)
 }
@@ -215,48 +210,26 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 	return arg
 }
 
-// OverrideAccount specifies the state of an account to be overridden.
-type OverrideAccount struct {
-	// Nonce sets nonce of the account. Note: the nonce override will only
-	// be applied when it is set to a non-zero value.
-	Nonce uint64
-
-	// Code sets the contract code. The override will be applied
-	// when the code is non-nil, i.e. setting empty code is possible
-	// using an empty slice.
-	Code []byte
-
-	// Balance sets the account balance.
-	Balance *big.Int
-
-	// State sets the complete storage. The override will be applied
-	// when the given map is non-nil. Using an empty map wipes the
-	// entire contract storage during the call.
-	State map[common.Hash]common.Hash
-
-	// StateDiff allows overriding individual storage slots.
-	StateDiff map[common.Hash]common.Hash
-}
-
-func (a OverrideAccount) MarshalJSON() ([]byte, error) {
-	type acc struct {
-		Nonce     hexutil.Uint64              `json:"nonce,omitempty"`
-		Code      string                      `json:"code,omitempty"`
-		Balance   *hexutil.Big                `json:"balance,omitempty"`
-		State     interface{}                 `json:"state,omitempty"`
-		StateDiff map[common.Hash]common.Hash `json:"stateDiff,omitempty"`
+func toOverrideMap(overrides *map[common.Address]OverrideAccount) interface{} {
+	if overrides == nil {
+		return nil
 	}
-
-	output := acc{
-		Nonce:     hexutil.Uint64(a.Nonce),
-		Balance:   (*hexutil.Big)(a.Balance),
-		StateDiff: a.StateDiff,
+	type overrideAccount struct {
+		Nonce     hexutil.Uint64              `json:"nonce"`
+		Code      hexutil.Bytes               `json:"code"`
+		Balance   *hexutil.Big                `json:"balance"`
+		State     map[common.Hash]common.Hash `json:"state"`
+		StateDiff map[common.Hash]common.Hash `json:"stateDiff"`
 	}
-	if a.Code != nil {
-		output.Code = hexutil.Encode(a.Code)
+	result := make(map[common.Address]overrideAccount)
+	for addr, override := range *overrides {
+		result[addr] = overrideAccount{
+			Nonce:     hexutil.Uint64(override.Nonce),
+			Code:      override.Code,
+			Balance:   (*hexutil.Big)(override.Balance),
+			State:     override.State,
+			StateDiff: override.StateDiff,
+		}
 	}
-	if a.State != nil {
-		output.State = a.State
-	}
-	return json.Marshal(output)
+	return &result
 }

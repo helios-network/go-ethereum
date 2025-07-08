@@ -35,7 +35,7 @@ import (
 // scratchHeaders is the number of headers to store in a scratch space to allow
 // concurrent downloads. A header is about 0.5KB in size, so there is no worry
 // about using too much memory. The only catch is that we can only validate gaps
-// after they're linked to the head, so the bigger the scratch space, the larger
+// afer they're linked to the head, so the bigger the scratch space, the larger
 // potential for invalid headers.
 //
 // The current scratch space of 131072 headers is expected to use 64MB RAM.
@@ -520,7 +520,7 @@ func (s *skeleton) initSync(head *types.Header) {
 				}
 				break
 			}
-			// If the last subchain can be extended, we're lucky. Otherwise, create
+			// If the last subchain can be extended, we're lucky. Otherwise create
 			// a new subchain sync task.
 			var extended bool
 			if n := len(s.progress.Subchains); n > 0 {
@@ -977,14 +977,8 @@ func (s *skeleton) processResponse(res *headerResponse) (linked bool, merged boo
 				// the expected new sync cycle after some propagated blocks. Log
 				// it for debugging purposes, explicitly clean and don't escalate.
 				case subchains == 2 && s.progress.Subchains[1].Head == s.progress.Subchains[1].Tail:
-					// Remove the leftover skeleton header associated with old
-					// skeleton chain only if it's not covered by the current
-					// skeleton range.
-					if s.progress.Subchains[1].Head < s.progress.Subchains[0].Tail {
-						log.Debug("Cleaning previous beacon sync state", "head", s.progress.Subchains[1].Head)
-						rawdb.DeleteSkeletonHeader(batch, s.progress.Subchains[1].Head)
-					}
-					// Drop the leftover skeleton chain since it's stale.
+					log.Debug("Cleaning previous beacon sync state", "head", s.progress.Subchains[1].Head)
+					rawdb.DeleteSkeletonHeader(batch, s.progress.Subchains[1].Head)
 					s.progress.Subchains = s.progress.Subchains[:1]
 
 				// If we have more than one header or more than one leftover chain,

@@ -22,6 +22,9 @@
 package remotedb
 
 import (
+	"errors"
+	"strings"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -147,8 +150,24 @@ func (db *Database) Close() error {
 	return nil
 }
 
-func New(client *rpc.Client) ethdb.Database {
+func dialRPC(endpoint string) (*rpc.Client, error) {
+	if endpoint == "" {
+		return nil, errors.New("endpoint must be specified")
+	}
+	if strings.HasPrefix(endpoint, "rpc:") || strings.HasPrefix(endpoint, "ipc:") {
+		// Backwards compatibility with geth < 1.5 which required
+		// these prefixes.
+		endpoint = endpoint[4:]
+	}
+	return rpc.Dial(endpoint)
+}
+
+func New(endpoint string) (ethdb.Database, error) {
+	client, err := dialRPC(endpoint)
+	if err != nil {
+		return nil, err
+	}
 	return &Database{
 		remote: client,
-	}
+	}, nil
 }

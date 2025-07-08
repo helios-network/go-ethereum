@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -40,6 +41,7 @@ const (
 	lookupRequestLimit      = 3  // max requests against a single node during lookup
 	findnodeResultLimit     = 16 // applies in FINDNODE handler
 	totalNodesResponseLimit = 5  // applies in waitForNodes
+	nodesResponseItemLimit  = 3  // applies in sendNodes
 
 	respTimeoutV5 = 700 * time.Millisecond
 )
@@ -52,7 +54,7 @@ type codecV5 interface {
 	// Encode encodes a packet.
 	Encode(enode.ID, string, v5wire.Packet, *v5wire.Whoareyou) ([]byte, v5wire.Nonce, error)
 
-	// Decode decodes a packet. It returns a *v5wire.Unknown packet if decryption fails.
+	// decode decodes a packet. It returns a *v5wire.Unknown packet if decryption fails.
 	// The *enode.Node return value is non-nil when the input contains a handshake response.
 	Decode([]byte, string) (enode.ID, *enode.Node, v5wire.Packet, error)
 }
@@ -69,9 +71,6 @@ type UDPv5 struct {
 	log          log.Logger
 	clock        mclock.Clock
 	validSchemes enr.IdentityScheme
-
-	// misc buffers used during message handling
-	logcontext []interface{}
 
 	// talkreq handler registry
 	trlock     sync.Mutex
@@ -157,11 +156,10 @@ func newUDPv5(conn UDPConn, ln *enode.LocalNode, cfg Config) (*UDPv5, error) {
 		callDoneCh:    make(chan *callV5),
 		respTimeoutCh: make(chan *callTimeout),
 		// state of dispatch
-		codec:            v5wire.NewCodec(ln, cfg.PrivateKey, cfg.Clock, cfg.V5ProtocolID),
+		codec:            v5wire.NewCodec(ln, cfg.PrivateKey, cfg.Clock),
 		activeCallByNode: make(map[enode.ID]*callV5),
 		activeCallByAuth: make(map[v5wire.Nonce]*callV5),
 		callQueue:        make(map[enode.ID][]*callV5),
-
 		// shutdown
 		closeCtx:       closeCtx,
 		cancelCloseCtx: cancelCloseCtx,
@@ -325,7 +323,7 @@ func lookupDistances(target, dest enode.ID) (dists []uint) {
 	td := enode.LogDist(target, dest)
 	dists = append(dists, uint(td))
 	for i := 1; len(dists) < lookupRequestLimit; i++ {
-		if td+i <= 256 {
+		if td+i < 256 {
 			dists = append(dists, uint(td+i))
 		}
 		if td-i > 0 {
@@ -389,7 +387,7 @@ func (t *UDPv5) waitForNodes(c *callV5, distances []uint) ([]*enode.Node, error)
 				nodes = append(nodes, node)
 			}
 			if total == -1 {
-				total = min(int(response.RespCount), totalNodesResponseLimit)
+				total = min(int(response.Total), totalNodesResponseLimit)
 			}
 			if received++; received == total {
 				return nodes, nil
@@ -605,18 +603,13 @@ func (t *UDPv5) sendResponse(toID enode.ID, toAddr *net.UDPAddr, packet v5wire.P
 // send sends a packet to the given node.
 func (t *UDPv5) send(toID enode.ID, toAddr *net.UDPAddr, packet v5wire.Packet, c *v5wire.Whoareyou) (v5wire.Nonce, error) {
 	addr := toAddr.String()
-	t.logcontext = append(t.logcontext[:0], "id", toID, "addr", addr)
-	t.logcontext = packet.AppendLogInfo(t.logcontext)
-
 	enc, nonce, err := t.codec.Encode(toID, addr, packet, c)
 	if err != nil {
-		t.logcontext = append(t.logcontext, "err", err)
-		t.log.Warn(">> "+packet.Name(), t.logcontext...)
+		t.log.Warn(">> "+packet.Name(), "id", toID, "addr", addr, "err", err)
 		return nonce, err
 	}
-
 	_, err = t.conn.WriteToUDP(enc, toAddr)
-	t.log.Trace(">> "+packet.Name(), t.logcontext...)
+	t.log.Trace(">> "+packet.Name(), "id", toID, "addr", addr)
 	return nonce, err
 }
 
@@ -666,9 +659,7 @@ func (t *UDPv5) handlePacket(rawpacket []byte, fromAddr *net.UDPAddr) error {
 	}
 	if packet.Kind() != v5wire.WhoareyouPacket {
 		// WHOAREYOU logged separately to report errors.
-		t.logcontext = append(t.logcontext[:0], "id", fromID, "addr", addr)
-		t.logcontext = packet.AppendLogInfo(t.logcontext)
-		t.log.Trace("<< "+packet.Name(), t.logcontext...)
+		t.log.Trace("<< "+packet.Name(), "id", fromID, "addr", addr)
 	}
 	t.handle(packet, fromID, fromAddr)
 	return nil
@@ -723,7 +714,7 @@ func (t *UDPv5) handle(p v5wire.Packet, fromID enode.ID, fromAddr *net.UDPAddr) 
 	case *v5wire.Nodes:
 		t.handleCallResponse(fromID, fromAddr, p)
 	case *v5wire.TalkRequest:
-		t.handleTalkRequest(fromID, fromAddr, p)
+		t.handleTalkRequest(p, fromID, fromAddr)
 	case *v5wire.TalkResponse:
 		t.handleCallResponse(fromID, fromAddr, p)
 	}
@@ -801,7 +792,7 @@ func (t *UDPv5) handleFindnode(p *v5wire.Findnode, fromID enode.ID, fromAddr *ne
 // collectTableNodes creates a FINDNODE result set for the given distances.
 func (t *UDPv5) collectTableNodes(rip net.IP, distances []uint, limit int) []*enode.Node {
 	var nodes []*enode.Node
-	var processed = make(map[uint]struct{})
+	processed := make(map[uint]struct{})
 	for _, dist := range distances {
 		// Reject duplicate / invalid distances.
 		_, seen := processed[dist]
@@ -838,37 +829,25 @@ func (t *UDPv5) collectTableNodes(rip net.IP, distances []uint, limit int) []*en
 // packNodes creates NODES response packets for the given node list.
 func packNodes(reqid []byte, nodes []*enode.Node) []*v5wire.Nodes {
 	if len(nodes) == 0 {
-		return []*v5wire.Nodes{{ReqID: reqid, RespCount: 1}}
+		return []*v5wire.Nodes{{ReqID: reqid, Total: 1}}
 	}
 
-	// This limit represents the available space for nodes in output packets. Maximum
-	// packet size is 1280, and out of this ~80 bytes will be taken up by the packet
-	// frame. So limiting to 1000 bytes here leaves 200 bytes for other fields of the
-	// NODES message, which is a lot.
-	const sizeLimit = 1000
-
+	total := uint8(math.Ceil(float64(len(nodes)) / 3))
 	var resp []*v5wire.Nodes
 	for len(nodes) > 0 {
-		p := &v5wire.Nodes{ReqID: reqid}
-		size := uint64(0)
-		for len(nodes) > 0 {
-			r := nodes[0].Record()
-			if size += r.Size(); size > sizeLimit {
-				break
-			}
-			p.Nodes = append(p.Nodes, r)
-			nodes = nodes[1:]
+		p := &v5wire.Nodes{ReqID: reqid, Total: total}
+		items := min(nodesResponseItemLimit, len(nodes))
+		for i := 0; i < items; i++ {
+			p.Nodes = append(p.Nodes, nodes[i].Record())
 		}
+		nodes = nodes[items:]
 		resp = append(resp, p)
-	}
-	for _, msg := range resp {
-		msg.RespCount = uint8(len(resp))
 	}
 	return resp
 }
 
 // handleTalkRequest runs the talk request handler of the requested protocol.
-func (t *UDPv5) handleTalkRequest(fromID enode.ID, fromAddr *net.UDPAddr, p *v5wire.TalkRequest) {
+func (t *UDPv5) handleTalkRequest(p *v5wire.TalkRequest, fromID enode.ID, fromAddr *net.UDPAddr) {
 	t.trlock.Lock()
 	handler := t.trhandlers[p.Protocol]
 	t.trlock.Unlock()

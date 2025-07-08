@@ -24,19 +24,17 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-var (
-	mainnetChainConfig = params.ChainConfig{
-		ChainID:        big.NewInt(1),
-		HomesteadBlock: big.NewInt(1150000),
-		DAOForkBlock:   big.NewInt(1920000),
-		DAOForkSupport: true,
-		EIP150Block:    big.NewInt(2463000),
-		EIP150Hash:     common.HexToHash("0x2086799aeebeae135c246c65021c82b4e15a2c451340993aacfd2751886514f0"),
-		EIP155Block:    big.NewInt(2675000),
-		EIP158Block:    big.NewInt(2675000),
-		ByzantiumBlock: big.NewInt(4370000),
-	}
-)
+var mainnetChainConfig = params.ChainConfig{
+	ChainID:        big.NewInt(1),
+	HomesteadBlock: big.NewInt(1150000),
+	DAOForkBlock:   big.NewInt(1920000),
+	DAOForkSupport: true,
+	EIP150Block:    big.NewInt(2463000),
+	EIP150Hash:     common.HexToHash("0x2086799aeebeae135c246c65021c82b4e15a2c451340993aacfd2751886514f0"),
+	EIP155Block:    big.NewInt(2675000),
+	EIP158Block:    big.NewInt(2675000),
+	ByzantiumBlock: big.NewInt(4370000),
+}
 
 func TestDifficulty(t *testing.T) {
 	t.Parallel()
@@ -52,8 +50,11 @@ func TestDifficulty(t *testing.T) {
 
 	// files are 2 years old, contains strange values
 	dt.skipLoad("difficultyCustomHomestead\\.json")
+	dt.skipLoad("difficultyMorden\\.json")
+	dt.skipLoad("difficultyOlimpic\\.json")
 
 	dt.config("Ropsten", *params.RopstenChainConfig)
+	dt.config("Morden", *params.RopstenChainConfig)
 	dt.config("Frontier", params.ChainConfig{})
 
 	dt.config("Homestead", params.ChainConfig{

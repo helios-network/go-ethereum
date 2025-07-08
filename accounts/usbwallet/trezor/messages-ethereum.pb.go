@@ -11,9 +11,11 @@ import (
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
-var _ = proto.Marshal
-var _ = fmt.Errorf
-var _ = math.Inf
+var (
+	_ = proto.Marshal
+	_ = fmt.Errorf
+	_ = math.Inf
+)
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the proto package it is being compiled against.
@@ -21,7 +23,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-// *
+//*
 // Request: Ask device for public key corresponding to address_n path
 // @start
 // @next EthereumPublicKey
@@ -44,15 +46,19 @@ func (*EthereumGetPublicKey) Descriptor() ([]byte, []int) {
 func (m *EthereumGetPublicKey) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EthereumGetPublicKey.Unmarshal(m, b)
 }
+
 func (m *EthereumGetPublicKey) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_EthereumGetPublicKey.Marshal(b, m, deterministic)
 }
+
 func (m *EthereumGetPublicKey) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_EthereumGetPublicKey.Merge(m, src)
 }
+
 func (m *EthereumGetPublicKey) XXX_Size() int {
 	return xxx_messageInfo_EthereumGetPublicKey.Size(m)
 }
+
 func (m *EthereumGetPublicKey) XXX_DiscardUnknown() {
 	xxx_messageInfo_EthereumGetPublicKey.DiscardUnknown(m)
 }
@@ -73,7 +79,7 @@ func (m *EthereumGetPublicKey) GetShowDisplay() bool {
 	return false
 }
 
-// *
+//*
 // Response: Contains public key derived from device private seed
 // @end
 type EthereumPublicKey struct {
@@ -94,15 +100,19 @@ func (*EthereumPublicKey) Descriptor() ([]byte, []int) {
 func (m *EthereumPublicKey) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EthereumPublicKey.Unmarshal(m, b)
 }
+
 func (m *EthereumPublicKey) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_EthereumPublicKey.Marshal(b, m, deterministic)
 }
+
 func (m *EthereumPublicKey) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_EthereumPublicKey.Merge(m, src)
 }
+
 func (m *EthereumPublicKey) XXX_Size() int {
 	return xxx_messageInfo_EthereumPublicKey.Size(m)
 }
+
 func (m *EthereumPublicKey) XXX_DiscardUnknown() {
 	xxx_messageInfo_EthereumPublicKey.DiscardUnknown(m)
 }
@@ -123,7 +133,7 @@ func (m *EthereumPublicKey) GetXpub() string {
 	return ""
 }
 
-// *
+//*
 // Request: Ask device for Ethereum address corresponding to address_n path
 // @start
 // @next EthereumAddress
@@ -146,15 +156,19 @@ func (*EthereumGetAddress) Descriptor() ([]byte, []int) {
 func (m *EthereumGetAddress) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EthereumGetAddress.Unmarshal(m, b)
 }
+
 func (m *EthereumGetAddress) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_EthereumGetAddress.Marshal(b, m, deterministic)
 }
+
 func (m *EthereumGetAddress) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_EthereumGetAddress.Merge(m, src)
 }
+
 func (m *EthereumGetAddress) XXX_Size() int {
 	return xxx_messageInfo_EthereumGetAddress.Size(m)
 }
+
 func (m *EthereumGetAddress) XXX_DiscardUnknown() {
 	xxx_messageInfo_EthereumGetAddress.DiscardUnknown(m)
 }
@@ -175,7 +189,7 @@ func (m *EthereumGetAddress) GetShowDisplay() bool {
 	return false
 }
 
-// *
+//*
 // Response: Contains an Ethereum address derived from device private seed
 // @end
 type EthereumAddress struct {
@@ -196,15 +210,19 @@ func (*EthereumAddress) Descriptor() ([]byte, []int) {
 func (m *EthereumAddress) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EthereumAddress.Unmarshal(m, b)
 }
+
 func (m *EthereumAddress) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_EthereumAddress.Marshal(b, m, deterministic)
 }
+
 func (m *EthereumAddress) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_EthereumAddress.Merge(m, src)
 }
+
 func (m *EthereumAddress) XXX_Size() int {
 	return xxx_messageInfo_EthereumAddress.Size(m)
 }
+
 func (m *EthereumAddress) XXX_DiscardUnknown() {
 	xxx_messageInfo_EthereumAddress.DiscardUnknown(m)
 }
@@ -225,7 +243,7 @@ func (m *EthereumAddress) GetAddressHex() string {
 	return ""
 }
 
-// *
+//*
 // Request: Ask device to sign transaction
 // All fields are optional from the protocol's point of view. Each field defaults to value `0` if missing.
 // Note: the first at most 1024 bytes of data MUST be transmitted as part of this message.
@@ -259,15 +277,19 @@ func (*EthereumSignTx) Descriptor() ([]byte, []int) {
 func (m *EthereumSignTx) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EthereumSignTx.Unmarshal(m, b)
 }
+
 func (m *EthereumSignTx) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_EthereumSignTx.Marshal(b, m, deterministic)
 }
+
 func (m *EthereumSignTx) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_EthereumSignTx.Merge(m, src)
 }
+
 func (m *EthereumSignTx) XXX_Size() int {
 	return xxx_messageInfo_EthereumSignTx.Size(m)
 }
+
 func (m *EthereumSignTx) XXX_DiscardUnknown() {
 	xxx_messageInfo_EthereumSignTx.DiscardUnknown(m)
 }
@@ -351,7 +373,7 @@ func (m *EthereumSignTx) GetTxType() uint32 {
 	return 0
 }
 
-// *
+//*
 // Response: Device asks for more data from transaction payload, or returns the signature.
 // If data_length is set, device awaits that many more bytes of payload.
 // Otherwise, the signature_* fields contain the computed transaction signature. All three fields will be present.
@@ -377,15 +399,19 @@ func (*EthereumTxRequest) Descriptor() ([]byte, []int) {
 func (m *EthereumTxRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EthereumTxRequest.Unmarshal(m, b)
 }
+
 func (m *EthereumTxRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_EthereumTxRequest.Marshal(b, m, deterministic)
 }
+
 func (m *EthereumTxRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_EthereumTxRequest.Merge(m, src)
 }
+
 func (m *EthereumTxRequest) XXX_Size() int {
 	return xxx_messageInfo_EthereumTxRequest.Size(m)
 }
+
 func (m *EthereumTxRequest) XXX_DiscardUnknown() {
 	xxx_messageInfo_EthereumTxRequest.DiscardUnknown(m)
 }
@@ -420,7 +446,7 @@ func (m *EthereumTxRequest) GetSignatureS() []byte {
 	return nil
 }
 
-// *
+//*
 // Request: Transaction payload data.
 // @next EthereumTxRequest
 type EthereumTxAck struct {
@@ -440,15 +466,19 @@ func (*EthereumTxAck) Descriptor() ([]byte, []int) {
 func (m *EthereumTxAck) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EthereumTxAck.Unmarshal(m, b)
 }
+
 func (m *EthereumTxAck) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_EthereumTxAck.Marshal(b, m, deterministic)
 }
+
 func (m *EthereumTxAck) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_EthereumTxAck.Merge(m, src)
 }
+
 func (m *EthereumTxAck) XXX_Size() int {
 	return xxx_messageInfo_EthereumTxAck.Size(m)
 }
+
 func (m *EthereumTxAck) XXX_DiscardUnknown() {
 	xxx_messageInfo_EthereumTxAck.DiscardUnknown(m)
 }
@@ -462,7 +492,7 @@ func (m *EthereumTxAck) GetDataChunk() []byte {
 	return nil
 }
 
-// *
+//*
 // Request: Ask device to sign message
 // @start
 // @next EthereumMessageSignature
@@ -485,15 +515,19 @@ func (*EthereumSignMessage) Descriptor() ([]byte, []int) {
 func (m *EthereumSignMessage) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EthereumSignMessage.Unmarshal(m, b)
 }
+
 func (m *EthereumSignMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_EthereumSignMessage.Marshal(b, m, deterministic)
 }
+
 func (m *EthereumSignMessage) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_EthereumSignMessage.Merge(m, src)
 }
+
 func (m *EthereumSignMessage) XXX_Size() int {
 	return xxx_messageInfo_EthereumSignMessage.Size(m)
 }
+
 func (m *EthereumSignMessage) XXX_DiscardUnknown() {
 	xxx_messageInfo_EthereumSignMessage.DiscardUnknown(m)
 }
@@ -514,7 +548,7 @@ func (m *EthereumSignMessage) GetMessage() []byte {
 	return nil
 }
 
-// *
+//*
 // Response: Signed message
 // @end
 type EthereumMessageSignature struct {
@@ -536,15 +570,19 @@ func (*EthereumMessageSignature) Descriptor() ([]byte, []int) {
 func (m *EthereumMessageSignature) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EthereumMessageSignature.Unmarshal(m, b)
 }
+
 func (m *EthereumMessageSignature) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_EthereumMessageSignature.Marshal(b, m, deterministic)
 }
+
 func (m *EthereumMessageSignature) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_EthereumMessageSignature.Merge(m, src)
 }
+
 func (m *EthereumMessageSignature) XXX_Size() int {
 	return xxx_messageInfo_EthereumMessageSignature.Size(m)
 }
+
 func (m *EthereumMessageSignature) XXX_DiscardUnknown() {
 	xxx_messageInfo_EthereumMessageSignature.DiscardUnknown(m)
 }
@@ -572,7 +610,7 @@ func (m *EthereumMessageSignature) GetAddressHex() string {
 	return ""
 }
 
-// *
+//*
 // Request: Ask device to verify message
 // @start
 // @next Success
@@ -597,15 +635,19 @@ func (*EthereumVerifyMessage) Descriptor() ([]byte, []int) {
 func (m *EthereumVerifyMessage) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EthereumVerifyMessage.Unmarshal(m, b)
 }
+
 func (m *EthereumVerifyMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_EthereumVerifyMessage.Marshal(b, m, deterministic)
 }
+
 func (m *EthereumVerifyMessage) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_EthereumVerifyMessage.Merge(m, src)
 }
+
 func (m *EthereumVerifyMessage) XXX_Size() int {
 	return xxx_messageInfo_EthereumVerifyMessage.Size(m)
 }
+
 func (m *EthereumVerifyMessage) XXX_DiscardUnknown() {
 	xxx_messageInfo_EthereumVerifyMessage.DiscardUnknown(m)
 }

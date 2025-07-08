@@ -68,7 +68,7 @@ var (
 // behind this split design is to provide read access to RPC handlers and sync
 // servers even while the trie is executing expensive garbage collection.
 type Database struct {
-	diskdb ethdb.Database // Persistent storage for matured trie nodes
+	diskdb ethdb.KeyValueStore // Persistent storage for matured trie nodes
 
 	cleans  *fastcache.Cache            // GC friendly memory cache of clean node RLPs
 	dirties map[common.Hash]*cachedNode // Data and references relationships of dirty trie nodes
@@ -163,7 +163,7 @@ func (n *cachedNode) rlp() []byte {
 // or by regenerating it from the rlp encoded blob.
 func (n *cachedNode) obj(hash common.Hash) node {
 	if node, ok := n.node.(rawNode); ok {
-		// The raw-blob format nodes are loaded either from the
+		// The raw-blob format nodes are loaded from either from
 		// clean cache or the database, they are all in their own
 		// copy and safe to use unsafe decoder.
 		return mustDecodeNodeUnsafe(hash[:], node)
@@ -273,14 +273,14 @@ type Config struct {
 // NewDatabase creates a new trie database to store ephemeral trie content before
 // its written out to disk or garbage collected. No read cache is created, so all
 // data retrievals will hit the underlying disk database.
-func NewDatabase(diskdb ethdb.Database) *Database {
+func NewDatabase(diskdb ethdb.KeyValueStore) *Database {
 	return NewDatabaseWithConfig(diskdb, nil)
 }
 
 // NewDatabaseWithConfig creates a new trie database to store ephemeral trie content
 // before its written out to disk or garbage collected. It also acts as a read cache
 // for nodes loaded from disk.
-func NewDatabaseWithConfig(diskdb ethdb.Database, config *Config) *Database {
+func NewDatabaseWithConfig(diskdb ethdb.KeyValueStore, config *Config) *Database {
 	var cleans *fastcache.Cache
 	if config != nil && config.Cache > 0 {
 		if config.Journal == "" {
@@ -302,6 +302,11 @@ func NewDatabaseWithConfig(diskdb ethdb.Database, config *Config) *Database {
 		preimages: preimage,
 	}
 	return db
+}
+
+// DiskDB retrieves the persistent storage backing the trie database.
+func (db *Database) DiskDB() ethdb.KeyValueStore {
+	return db.diskdb
 }
 
 // insert inserts a simplified trie node into the memory database.
@@ -424,7 +429,7 @@ func (db *Database) Nodes() []common.Hash {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	var hashes = make([]common.Hash, 0, len(db.dirties))
+	hashes := make([]common.Hash, 0, len(db.dirties))
 	for hash := range db.dirties {
 		if hash != (common.Hash{}) { // Special case for "root" references/nodes
 			hashes = append(hashes, hash)
@@ -562,9 +567,7 @@ func (db *Database) Cap(limit common.StorageSize) error {
 	// If the preimage cache got large enough, push to disk. If it's still small
 	// leave for later to deduplicate writes.
 	if db.preimages != nil {
-		if err := db.preimages.commit(false); err != nil {
-			return err
-		}
+		db.preimages.commit(false)
 	}
 	// Keep committing nodes from the flush-list until we're below allowance
 	oldest := db.oldest
@@ -642,9 +645,7 @@ func (db *Database) Commit(node common.Hash, report bool, callback func(common.H
 
 	// Move all of the accumulated preimages into a write batch
 	if db.preimages != nil {
-		if err := db.preimages.commit(true); err != nil {
-			return err
-		}
+		db.preimages.commit(true)
 	}
 	// Move the trie itself into the batch, flushing if enough data is accumulated
 	nodes, storage := len(db.dirties), db.dirtiesSize
@@ -662,9 +663,8 @@ func (db *Database) Commit(node common.Hash, report bool, callback func(common.H
 	// Uncache any leftovers in the last batch
 	db.lock.Lock()
 	defer db.lock.Unlock()
-	if err := batch.Replay(uncacher); err != nil {
-		return err
-	}
+
+	batch.Replay(uncacher)
 	batch.Reset()
 
 	// Reset the storage counters and bumped metrics
@@ -712,12 +712,9 @@ func (db *Database) commit(hash common.Hash, batch ethdb.Batch, uncacher *cleane
 			return err
 		}
 		db.lock.Lock()
-		err := batch.Replay(uncacher)
+		batch.Replay(uncacher)
 		batch.Reset()
 		db.lock.Unlock()
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -795,8 +792,8 @@ func (db *Database) Update(nodes *MergedNodeSet) error {
 	}
 	for _, owner := range order {
 		subset := nodes.sets[owner]
-		for _, path := range subset.updates.order {
-			n, ok := subset.updates.nodes[path]
+		for _, path := range subset.paths {
+			n, ok := subset.nodes[path]
 			if !ok {
 				return fmt.Errorf("missing node %x %v", owner, path)
 			}
@@ -828,41 +825,13 @@ func (db *Database) Size() (common.StorageSize, common.StorageSize) {
 	// db.dirtiesSize only contains the useful data in the cache, but when reporting
 	// the total memory consumption, the maintenance metadata is also needed to be
 	// counted.
-	var metadataSize = common.StorageSize((len(db.dirties) - 1) * cachedNodeSize)
-	var metarootRefs = common.StorageSize(len(db.dirties[common.Hash{}].children) * (common.HashLength + 2))
+	metadataSize := common.StorageSize((len(db.dirties) - 1) * cachedNodeSize)
+	metarootRefs := common.StorageSize(len(db.dirties[common.Hash{}].children) * (common.HashLength + 2))
 	var preimageSize common.StorageSize
 	if db.preimages != nil {
 		preimageSize = db.preimages.size()
 	}
 	return db.dirtiesSize + db.childrenSize + metadataSize - metarootRefs, preimageSize
-}
-
-// GetReader retrieves a node reader belonging to the given state root.
-func (db *Database) GetReader(root common.Hash) Reader {
-	return newHashReader(db)
-}
-
-// hashReader is reader of hashDatabase which implements the Reader interface.
-type hashReader struct {
-	db *Database
-}
-
-// newHashReader initializes the hash reader.
-func newHashReader(db *Database) *hashReader {
-	return &hashReader{db: db}
-}
-
-// Node retrieves the trie node with the given node hash.
-// No error will be returned if the node is not found.
-func (reader *hashReader) Node(_ common.Hash, _ []byte, hash common.Hash) (node, error) {
-	return reader.db.node(hash), nil
-}
-
-// NodeBlob retrieves the RLP-encoded trie node blob with the given node hash.
-// No error will be returned if the node is not found.
-func (reader *hashReader) NodeBlob(_ common.Hash, _ []byte, hash common.Hash) ([]byte, error) {
-	blob, _ := reader.db.Node(hash)
-	return blob, nil
 }
 
 // saveCache saves clean state cache to given directory path
@@ -916,9 +885,4 @@ func (db *Database) CommitPreimages() error {
 		return nil
 	}
 	return db.preimages.commit(true)
-}
-
-// Scheme returns the node scheme used in the database.
-func (db *Database) Scheme() NodeScheme {
-	return &hashScheme{}
 }

@@ -117,7 +117,7 @@ type (
 		decode func([]byte) (interface{}, error)
 	}
 
-	// Setup contains the list of flags and fields used by the application
+	// stateSetup contains the list of flags and fields used by the application
 	Setup struct {
 		Version uint
 		flags   []flagDefinition

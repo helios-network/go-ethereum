@@ -19,14 +19,16 @@ package rpc
 import (
 	"context"
 	"io"
-	"sync"
 	"sync/atomic"
 
+	mapset "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-const MetadataApi = "rpc"
-const EngineApi = "engine"
+const (
+	MetadataApi = "rpc"
+	EngineApi   = "engine"
+)
 
 // CodecOption specifies which type of messages a codec supports.
 //
@@ -45,19 +47,13 @@ const (
 type Server struct {
 	services serviceRegistry
 	idgen    func() ID
-
-	mutex  sync.Mutex
-	codecs map[ServerCodec]struct{}
-	run    int32
+	run      int32
+	codecs   mapset.Set
 }
 
 // NewServer creates a new server instance with no registered handlers.
 func NewServer() *Server {
-	server := &Server{
-		idgen:  randomIDGenerator(),
-		codecs: make(map[ServerCodec]struct{}),
-		run:    1,
-	}
+	server := &Server{idgen: randomIDGenerator(), codecs: mapset.NewSet(), run: 1}
 	// Register the default service providing meta information about the RPC service such
 	// as the services and methods it offers.
 	rpcService := &RPCService{server}
@@ -81,32 +77,18 @@ func (s *Server) RegisterName(name string, receiver interface{}) error {
 func (s *Server) ServeCodec(codec ServerCodec, options CodecOption) {
 	defer codec.close()
 
-	if !s.trackCodec(codec) {
+	// Don't serve if server is stopped.
+	if atomic.LoadInt32(&s.run) == 0 {
 		return
 	}
-	defer s.untrackCodec(codec)
+
+	// Add the codec to the set so it can be closed by Stop.
+	s.codecs.Add(codec)
+	defer s.codecs.Remove(codec)
 
 	c := initClient(codec, s.idgen, &s.services)
 	<-codec.closed()
 	c.Close()
-}
-
-func (s *Server) trackCodec(codec ServerCodec) bool {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	if atomic.LoadInt32(&s.run) == 0 {
-		return false // Don't serve if server is stopped.
-	}
-	s.codecs[codec] = struct{}{}
-	return true
-}
-
-func (s *Server) untrackCodec(codec ServerCodec) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	delete(s.codecs, codec)
 }
 
 // serveSingleRequest reads and processes a single RPC request from the given codec. This
@@ -125,8 +107,7 @@ func (s *Server) serveSingleRequest(ctx context.Context, codec ServerCodec) {
 	reqs, batch, err := codec.readBatch()
 	if err != nil {
 		if err != io.EOF {
-			resp := errorMessage(&invalidMessageError{"parse error"})
-			codec.writeJSON(ctx, resp, true)
+			codec.writeJSON(ctx, errorMessage(&invalidMessageError{"parse error"}))
 		}
 		return
 	}
@@ -141,14 +122,12 @@ func (s *Server) serveSingleRequest(ctx context.Context, codec ServerCodec) {
 // requests to finish, then closes all codecs which will cancel pending requests and
 // subscriptions.
 func (s *Server) Stop() {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	if atomic.CompareAndSwapInt32(&s.run, 1, 0) {
 		log.Debug("RPC server shutting down")
-		for codec := range s.codecs {
-			codec.close()
-		}
+		s.codecs.Each(func(c interface{}) bool {
+			c.(ServerCodec).close()
+			return true
+		})
 	}
 }
 

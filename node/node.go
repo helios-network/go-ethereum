@@ -133,7 +133,12 @@ func New(conf *Config) (*Node, error) {
 	node.server.Config.PrivateKey = node.config.NodeKey()
 	node.server.Config.Name = node.config.NodeName()
 	node.server.Config.Logger = node.log
-	node.config.checkLegacyFiles()
+	if node.server.Config.StaticNodes == nil {
+		node.server.Config.StaticNodes = node.config.StaticNodes()
+	}
+	if node.server.Config.TrustedNodes == nil {
+		node.server.Config.TrustedNodes = node.config.TrustedNodes()
+	}
 	if node.server.Config.NodeDatabase == "" {
 		node.server.Config.NodeDatabase = node.config.NodeDB()
 	}
@@ -315,7 +320,7 @@ func (n *Node) openDataDir() error {
 	}
 
 	instdir := filepath.Join(n.config.DataDir, n.config.name())
-	if err := os.MkdirAll(instdir, 0700); err != nil {
+	if err := os.MkdirAll(instdir, 0o700); err != nil {
 		return err
 	}
 	// Lock the instance directory to prevent concurrent use by another instance as well as
@@ -365,7 +370,7 @@ func (n *Node) obtainJWTSecret(cliParam string) ([]byte, error) {
 		log.Info("Generated ephemeral JWT secret", "secret", hexutil.Encode(jwtSecret))
 		return jwtSecret, nil
 	}
-	if err := os.WriteFile(fileName, []byte(hexutil.Encode(jwtSecret)), 0600); err != nil {
+	if err := os.WriteFile(fileName, []byte(hexutil.Encode(jwtSecret)), 0o600); err != nil {
 		return nil, err
 	}
 	log.Info("Generated JWT secret", "path", fileName)
@@ -387,15 +392,15 @@ func (n *Node) startRPC() error {
 		}
 	}
 	var (
-		servers           []*httpServer
-		openAPIs, allAPIs = n.getAPIs()
+		servers   []*httpServer
+		open, all = n.GetAPIs()
 	)
 
-	initHttp := func(server *httpServer, port int) error {
+	initHttp := func(server *httpServer, apis []rpc.API, port int) error {
 		if err := server.setListenAddr(n.config.HTTPHost, port); err != nil {
 			return err
 		}
-		if err := server.enableRPC(openAPIs, httpConfig{
+		if err := server.enableRPC(apis, httpConfig{
 			CorsAllowedOrigins: n.config.HTTPCors,
 			Vhosts:             n.config.HTTPVirtualHosts,
 			Modules:            n.config.HTTPModules,
@@ -407,12 +412,12 @@ func (n *Node) startRPC() error {
 		return nil
 	}
 
-	initWS := func(port int) error {
+	initWS := func(apis []rpc.API, port int) error {
 		server := n.wsServerForPort(port, false)
 		if err := server.setListenAddr(n.config.WSHost, port); err != nil {
 			return err
 		}
-		if err := server.enableWS(openAPIs, wsConfig{
+		if err := server.enableWS(n.rpcAPIs, wsConfig{
 			Modules: n.config.WSModules,
 			Origins: n.config.WSOrigins,
 			prefix:  n.config.WSPathPrefix,
@@ -423,13 +428,13 @@ func (n *Node) startRPC() error {
 		return nil
 	}
 
-	initAuth := func(port int, secret []byte) error {
+	initAuth := func(apis []rpc.API, port int, secret []byte) error {
 		// Enable auth via HTTP
 		server := n.httpAuth
 		if err := server.setListenAddr(n.config.AuthAddr, port); err != nil {
 			return err
 		}
-		if err := server.enableRPC(allAPIs, httpConfig{
+		if err := server.enableRPC(apis, httpConfig{
 			CorsAllowedOrigins: DefaultAuthCors,
 			Vhosts:             n.config.AuthVirtualHosts,
 			Modules:            DefaultAuthModules,
@@ -444,7 +449,7 @@ func (n *Node) startRPC() error {
 		if err := server.setListenAddr(n.config.AuthAddr, port); err != nil {
 			return err
 		}
-		if err := server.enableWS(allAPIs, wsConfig{
+		if err := server.enableWS(apis, wsConfig{
 			Modules:   DefaultAuthModules,
 			Origins:   DefaultAuthOrigins,
 			prefix:    DefaultAuthPrefix,
@@ -459,24 +464,24 @@ func (n *Node) startRPC() error {
 	// Set up HTTP.
 	if n.config.HTTPHost != "" {
 		// Configure legacy unauthenticated HTTP.
-		if err := initHttp(n.http, n.config.HTTPPort); err != nil {
+		if err := initHttp(n.http, open, n.config.HTTPPort); err != nil {
 			return err
 		}
 	}
 	// Configure WebSocket.
 	if n.config.WSHost != "" {
 		// legacy unauthenticated
-		if err := initWS(n.config.WSPort); err != nil {
+		if err := initWS(open, n.config.WSPort); err != nil {
 			return err
 		}
 	}
 	// Configure authenticated API
-	if len(openAPIs) != len(allAPIs) {
+	if len(open) != len(all) {
 		jwtSecret, err := n.obtainJWTSecret(n.config.JWTSecret)
 		if err != nil {
 			return err
 		}
-		if err := initAuth(n.config.AuthPort, jwtSecret); err != nil {
+		if err := initAuth(all, n.config.AuthPort, jwtSecret); err != nil {
 			return err
 		}
 	}
@@ -565,9 +570,9 @@ func (n *Node) RegisterAPIs(apis []rpc.API) {
 	n.rpcAPIs = append(n.rpcAPIs, apis...)
 }
 
-// getAPIs return two sets of APIs, both the ones that do not require
+// GetAPIs return two sets of APIs, both the ones that do not require
 // authentication, and the complete set
-func (n *Node) getAPIs() (unauthenticated, all []rpc.API) {
+func (n *Node) GetAPIs() (unauthenticated, all []rpc.API) {
 	for _, api := range n.rpcAPIs {
 		if !api.Authenticated {
 			unauthenticated = append(unauthenticated, api)
@@ -661,19 +666,6 @@ func (n *Node) WSEndpoint() string {
 		return "ws://" + n.http.listenAddr() + n.http.wsConfig.prefix
 	}
 	return "ws://" + n.ws.listenAddr() + n.ws.wsConfig.prefix
-}
-
-// HTTPAuthEndpoint returns the URL of the authenticated HTTP server.
-func (n *Node) HTTPAuthEndpoint() string {
-	return "http://" + n.httpAuth.listenAddr()
-}
-
-// WSAuthEndpoint returns the current authenticated JSON-RPC over WebSocket endpoint.
-func (n *Node) WSAuthEndpoint() string {
-	if n.httpAuth.wsAllowed() {
-		return "ws://" + n.httpAuth.listenAddr() + n.httpAuth.wsConfig.prefix
-	}
-	return "ws://" + n.wsAuth.listenAddr() + n.wsAuth.wsConfig.prefix
 }
 
 // EventMux retrieves the event multiplexer used by all the network services in

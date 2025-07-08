@@ -31,7 +31,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -130,7 +129,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 		data[35] = byte(i)
 		if bc != nil {
 			header := bc.GetHeaderByHash(bhash)
-			statedb, err := state.New(header.Root, bc.StateCache(), nil)
+			statedb, err := state.New(header.Root, state.NewDatabase(db), nil)
 
 			if err == nil {
 				from := statedb.GetOrNewStateObject(bankAddr)
@@ -142,7 +141,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 				txContext := core.NewEVMTxContext(msg)
 				vmenv := vm.NewEVM(context, txContext, statedb, config, vm.Config{NoBaseFee: true})
 
-				//vmenv := core.NewEnv(statedb, config, bc, msg, header, vm.Config{})
+				// vmenv := core.NewEnv(statedb, config, bc, msg, header, vm.Config{})
 				gp := new(core.GasPool).AddGas(math.MaxUint64)
 				result, _ := core.ApplyMessage(vmenv, msg, gp)
 				res = append(res, result.Return()...)
@@ -295,7 +294,7 @@ func testGetTxStatusFromUnindexedPeers(t *testing.T, protocol int) {
 			if testHash == (common.Hash{}) {
 				testHash = tx.Hash()
 				testStatus = light.TxStatus{
-					Status: txpool.TxStatusIncluded,
+					Status: core.TxStatusIncluded,
 					Lookup: &rawdb.LegacyTxLookupEntry{
 						BlockHash:  block.Hash(),
 						BlockIndex: block.NumberU64(),
@@ -328,7 +327,7 @@ func testGetTxStatusFromUnindexedPeers(t *testing.T, protocol int) {
 			if txLookup != txIndexUnlimited && (txLookup == txIndexDisabled || number < min) {
 				continue // Filter out unindexed transactions
 			}
-			stats[i].Status = txpool.TxStatusIncluded
+			stats[i].Status = core.TxStatusIncluded
 			stats[i].Lookup = &rawdb.LegacyTxLookupEntry{
 				BlockHash:  blockHashes[hash],
 				BlockIndex: number,
@@ -341,7 +340,7 @@ func testGetTxStatusFromUnindexedPeers(t *testing.T, protocol int) {
 		return nil
 	}
 
-	var testspecs = []struct {
+	testspecs := []struct {
 		peers     int
 		txLookups []uint64
 		txs       []common.Hash

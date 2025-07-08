@@ -22,7 +22,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/cmd/devp2p/internal/v5test"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/internal/flags"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/urfave/cli/v2"
 )
@@ -43,21 +42,18 @@ var (
 		Name:   "ping",
 		Usage:  "Sends ping to a node",
 		Action: discv5Ping,
-		Flags:  discoveryNodeFlags,
 	}
 	discv5ResolveCommand = &cli.Command{
 		Name:   "resolve",
 		Usage:  "Finds a node in the DHT",
 		Action: discv5Resolve,
-		Flags:  discoveryNodeFlags,
+		Flags:  []cli.Flag{bootnodesFlag},
 	}
 	discv5CrawlCommand = &cli.Command{
 		Name:   "crawl",
 		Usage:  "Updates a nodes.json file with random nodes found in the DHT",
 		Action: discv5Crawl,
-		Flags: flags.Merge(discoveryNodeFlags, []cli.Flag{
-			crawlTimeoutFlag,
-		}),
+		Flags:  []cli.Flag{bootnodesFlag, crawlTimeoutFlag},
 	}
 	discv5TestCommand = &cli.Command{
 		Name:   "test",
@@ -74,7 +70,12 @@ var (
 		Name:   "listen",
 		Usage:  "Runs a node",
 		Action: discv5Listen,
-		Flags:  discoveryNodeFlags,
+		Flags: []cli.Flag{
+			bootnodesFlag,
+			nodekeyFlag,
+			nodedbFlag,
+			listenAddrFlag,
+		},
 	}
 )
 
@@ -136,7 +137,7 @@ func discv5Listen(ctx *cli.Context) error {
 // startV5 starts an ephemeral discovery v5 node.
 func startV5(ctx *cli.Context) *discover.UDPv5 {
 	ln, config := makeDiscoveryConfig(ctx)
-	socket := listen(ctx, ln)
+	socket := listen(ln, ctx.String(listenAddrFlag.Name))
 	disc, err := discover.ListenV5(socket, ln, config)
 	if err != nil {
 		exit(err)

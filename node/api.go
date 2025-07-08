@@ -269,7 +269,7 @@ func (api *adminAPI) StartWS(host *string, port *int, allowedOrigins *string, ap
 	if err := server.setListenAddr(*host, *port); err != nil {
 		return false, err
 	}
-	openApis, _ := api.node.getAPIs()
+	openApis, _ := api.node.GetAPIs()
 	if err := server.enableWS(openApis, config); err != nil {
 		return false, err
 	}

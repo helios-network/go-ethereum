@@ -119,7 +119,7 @@ func newFastIterator(tree *Tree, root common.Hash, account common.Hash, seek com
 // which it prepares the stack for step-by-step iteration.
 func (fi *fastIterator) init() {
 	// Track which account hashes are iterators positioned on
-	var positioned = make(map[common.Hash]int)
+	positioned := make(map[common.Hash]int)
 
 	// Position all iterators and track how many remain live
 	for i := 0; i < len(fi.iterators); i++ {
@@ -276,7 +276,7 @@ func (fi *fastIterator) next(idx int) bool {
 			return false
 		}
 		// The elem we're placing it next to has the same value,
-		// so whichever winds up on n+1 will need further iteration
+		// so whichever winds up on n+1 will need further iteraton
 		clash = n + 1
 
 		return cur.priority < fi.iterators[n+1].priority

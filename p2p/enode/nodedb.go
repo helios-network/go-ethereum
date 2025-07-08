@@ -61,9 +61,7 @@ const (
 	dbVersion        = 9
 )
 
-var (
-	errInvalidIP = errors.New("invalid IP")
-)
+var errInvalidIP = errors.New("invalid IP")
 
 var zeroIP = make(net.IP, 16)
 
@@ -494,7 +492,7 @@ func nextNode(it iterator.Iterator) *Node {
 	return nil
 }
 
-// Close flushes and closes the database files.
+// close flushes and closes the database files.
 func (db *DB) Close() {
 	close(db.quit)
 	db.lvl.Close()

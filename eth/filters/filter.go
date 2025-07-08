@@ -119,44 +119,20 @@ func (f *Filter) Logs(ctx context.Context) ([]*types.Log, error) {
 		return nil, nil
 	}
 	var (
-		err     error
-		head    = header.Number.Int64()
+		head    = header.Number.Uint64()
+		end     = uint64(f.end)
 		pending = f.end == rpc.PendingBlockNumber.Int64()
 	)
-	resolveSpecial := func(number int64) (int64, error) {
-		var hdr *types.Header
-		switch number {
-		case rpc.LatestBlockNumber.Int64():
-			return head, nil
-		case rpc.PendingBlockNumber.Int64():
-			// we should return head here since we've already captured
-			// that we need to get the pending logs in the pending boolean above
-			return head, nil
-		case rpc.FinalizedBlockNumber.Int64():
-			hdr, _ = f.sys.backend.HeaderByNumber(ctx, rpc.FinalizedBlockNumber)
-			if hdr == nil {
-				return 0, errors.New("finalized header not found")
-			}
-		case rpc.SafeBlockNumber.Int64():
-			hdr, _ = f.sys.backend.HeaderByNumber(ctx, rpc.SafeBlockNumber)
-			if hdr == nil {
-				return 0, errors.New("safe header not found")
-			}
-		default:
-			return number, nil
-		}
-		return hdr.Number.Int64(), nil
+	if f.begin == rpc.LatestBlockNumber.Int64() {
+		f.begin = int64(head)
 	}
-	if f.begin, err = resolveSpecial(f.begin); err != nil {
-		return nil, err
-	}
-	if f.end, err = resolveSpecial(f.end); err != nil {
-		return nil, err
+	if f.end == rpc.LatestBlockNumber.Int64() || f.end == rpc.PendingBlockNumber.Int64() {
+		end = head
 	}
 	// Gather all indexed logs, and finish with non indexed ones
 	var (
 		logs           []*types.Log
-		end            = uint64(f.end)
+		err            error
 		size, sections = f.sys.backend.BloomStatus()
 	)
 	if indexed := sections * size; indexed > uint64(f.begin) {
@@ -234,9 +210,6 @@ func (f *Filter) unindexedLogs(ctx context.Context, end uint64) ([]*types.Log, e
 	var logs []*types.Log
 
 	for ; f.begin <= int64(end); f.begin++ {
-		if f.begin%10 == 0 && ctx.Err() != nil {
-			return logs, ctx.Err()
-		}
 		header, err := f.sys.backend.HeaderByNumber(ctx, rpc.BlockNumber(f.begin))
 		if header == nil || err != nil {
 			return logs, err

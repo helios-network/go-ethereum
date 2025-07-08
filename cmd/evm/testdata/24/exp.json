@@ -48,7 +48,6 @@
       }
     ],
     "currentDifficulty": null,
-    "gasUsed": "0x10306",
-    "currentBaseFee": "0x500"
+    "gasUsed": "0x10306"
   }
 }

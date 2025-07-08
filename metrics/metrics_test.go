@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"sync"
 	"testing"
 	"time"
@@ -9,11 +11,11 @@ import (
 
 const FANOUT = 128
 
-func TestReadRuntimeValues(t *testing.T) {
-	var v runtimeStats
-	readRuntimeStats(&v)
-	t.Logf("%+v", v)
-}
+// Stop the compiler from complaining during debugging.
+var (
+	_ = io.Discard
+	_ = log.LstdFlags
+)
 
 func BenchmarkMetrics(b *testing.B) {
 	r := NewRegistry()
@@ -24,6 +26,7 @@ func BenchmarkMetrics(b *testing.B) {
 	m := NewRegisteredMeter("meter", r)
 	t := NewRegisteredTimer("timer", r)
 	RegisterDebugGCStats(r)
+	RegisterRuntimeMemStats(r)
 	b.ResetTimer()
 	ch := make(chan bool)
 
@@ -43,6 +46,24 @@ func BenchmarkMetrics(b *testing.B) {
 				}
 			}
 		}()
+	//*/
+
+	wgR := &sync.WaitGroup{}
+	//*
+	wgR.Add(1)
+	go func() {
+		defer wgR.Done()
+		// log.Println("go CaptureRuntimeMemStats")
+		for {
+			select {
+			case <-ch:
+				// log.Println("done CaptureRuntimeMemStats")
+				return
+			default:
+				CaptureRuntimeMemStatsOnce(r)
+			}
+		}
+	}()
 	//*/
 
 	wgW := &sync.WaitGroup{}
@@ -68,7 +89,7 @@ func BenchmarkMetrics(b *testing.B) {
 	for i := 0; i < FANOUT; i++ {
 		go func(i int) {
 			defer wg.Done()
-			//log.Println("go", i)
+			// log.Println("go", i)
 			for i := 0; i < b.N; i++ {
 				c.Inc(1)
 				g.Update(int64(i))
@@ -77,12 +98,13 @@ func BenchmarkMetrics(b *testing.B) {
 				m.Mark(1)
 				t.Update(1)
 			}
-			//log.Println("done", i)
+			// log.Println("done", i)
 		}(i)
 	}
 	wg.Wait()
 	close(ch)
 	wgD.Wait()
+	wgR.Wait()
 	wgW.Wait()
 }
 

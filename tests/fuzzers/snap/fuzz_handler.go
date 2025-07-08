@@ -39,11 +39,12 @@ import (
 var trieRoot common.Hash
 
 func getChain() *core.BlockChain {
+	db := rawdb.NewMemoryDatabase()
 	ga := make(core.GenesisAlloc, 1000)
-	var a = make([]byte, 20)
-	var mkStorage = func(k, v int) (common.Hash, common.Hash) {
-		var kB = make([]byte, 32)
-		var vB = make([]byte, 32)
+	a := make([]byte, 20)
+	mkStorage := func(k, v int) (common.Hash, common.Hash) {
+		kB := make([]byte, 32)
+		vB := make([]byte, 32)
 		binary.LittleEndian.PutUint64(kB, uint64(k))
 		binary.LittleEndian.PutUint64(vB, uint64(v))
 		return common.BytesToHash(kB), common.BytesToHash(vB)
@@ -61,11 +62,13 @@ func getChain() *core.BlockChain {
 		}
 		ga[common.BytesToAddress(a)] = acc
 	}
-	gspec := &core.Genesis{
+	gspec := core.Genesis{
 		Config: params.TestChainConfig,
 		Alloc:  ga,
 	}
-	_, blocks, _ := core.GenerateChainWithGenesis(gspec, ethash.NewFaker(), 2, func(i int, gen *core.BlockGen) {})
+	genesis := gspec.MustCommit(db)
+	blocks, _ := core.GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, 2,
+		func(i int, gen *core.BlockGen) {})
 	cacheConf := &core.CacheConfig{
 		TrieCleanLimit:      0,
 		TrieDirtyLimit:      0,
@@ -76,7 +79,7 @@ func getChain() *core.BlockChain {
 		SnapshotWait:        true,
 	}
 	trieRoot = blocks[len(blocks)-1].Root()
-	bc, _ := core.NewBlockChain(rawdb.NewMemoryDatabase(), cacheConf, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
+	bc, _ := core.NewBlockChain(db, cacheConf, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
 	if _, err := bc.InsertChain(blocks); err != nil {
 		panic(err)
 	}
@@ -150,12 +153,15 @@ func doFuzz(input []byte, obj interface{}, code int) int {
 func FuzzARange(input []byte) int {
 	return doFuzz(input, &snap.GetAccountRangePacket{}, snap.GetAccountRangeMsg)
 }
+
 func FuzzSRange(input []byte) int {
 	return doFuzz(input, &snap.GetStorageRangesPacket{}, snap.GetStorageRangesMsg)
 }
+
 func FuzzByteCodes(input []byte) int {
 	return doFuzz(input, &snap.GetByteCodesPacket{}, snap.GetByteCodesMsg)
 }
+
 func FuzzTrieNodes(input []byte) int {
 	return doFuzz(input, &snap.GetTrieNodesPacket{}, snap.GetTrieNodesMsg)
 }

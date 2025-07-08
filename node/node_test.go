@@ -34,9 +34,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	testNodeKey, _ = crypto.GenerateKey()
-)
+var testNodeKey, _ = crypto.GenerateKey()
 
 func testNodeConfig() *Config {
 	return &Config{
@@ -559,13 +557,13 @@ func (test rpcPrefixTest) check(t *testing.T, node *Node) {
 	}
 
 	for _, path := range test.wantHTTP {
-		resp := rpcRequest(t, httpBase+path, testMethod)
+		resp := rpcRequest(t, httpBase+path)
 		if resp.StatusCode != 200 {
 			t.Errorf("Error: %s: bad status code %d, want 200", path, resp.StatusCode)
 		}
 	}
 	for _, path := range test.wantNoHTTP {
-		resp := rpcRequest(t, httpBase+path, testMethod)
+		resp := rpcRequest(t, httpBase+path)
 		if resp.StatusCode != 404 {
 			t.Errorf("Error: %s: bad status code %d, want 404", path, resp.StatusCode)
 		}
@@ -586,11 +584,10 @@ func (test rpcPrefixTest) check(t *testing.T, node *Node) {
 
 func createNode(t *testing.T, httpPort, wsPort int) *Node {
 	conf := &Config{
-		HTTPHost:     "127.0.0.1",
-		HTTPPort:     httpPort,
-		WSHost:       "127.0.0.1",
-		WSPort:       wsPort,
-		HTTPTimeouts: rpc.DefaultHTTPTimeouts,
+		HTTPHost: "127.0.0.1",
+		HTTPPort: httpPort,
+		WSHost:   "127.0.0.1",
+		WSPort:   wsPort,
 	}
 	node, err := New(conf)
 	if err != nil {

@@ -34,11 +34,11 @@ import (
 	"unsafe"
 
 	"github.com/edsrzf/mmap-go"
-	lrupkg "github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/hashicorp/golang-lru/simplelru"
 )
 
 var ErrInvalidDumpMagic = errors.New("invalid dump magic")
@@ -75,7 +75,7 @@ func isLittleEndian() bool {
 
 // memoryMap tries to memory map a file of uint32s for read only access.
 func memoryMap(path string, lock bool) (*os.File, mmap.MMap, []uint32, error) {
-	file, err := os.OpenFile(path, os.O_RDONLY, 0644)
+	file, err := os.OpenFile(path, os.O_RDONLY, 0o644)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -126,7 +126,7 @@ func memoryMapFile(file *os.File, write bool) (mmap.MMap, []uint32, error) {
 // path requested.
 func memoryMapAndGenerate(path string, size uint64, lock bool, generator func(buffer []uint32)) (*os.File, mmap.MMap, []uint32, error) {
 	// Ensure the data folder exists
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, nil, nil, err
 	}
 	// Create a huge temporary empty file to fill with data
@@ -165,45 +165,34 @@ func memoryMapAndGenerate(path string, size uint64, lock bool, generator func(bu
 	return memoryMap(path, lock)
 }
 
-type cacheOrDataset interface {
-	*cache | *dataset
-}
-
 // lru tracks caches or datasets by their last use time, keeping at most N of them.
-type lru[T cacheOrDataset] struct {
+type lru struct {
 	what string
-	new  func(epoch uint64) T
+	new  func(epoch uint64) interface{}
 	mu   sync.Mutex
 	// Items are kept in a LRU cache, but there is a special case:
 	// We always keep an item for (highest seen epoch) + 1 as the 'future item'.
-	cache      lrupkg.BasicLRU[uint64, T]
+	cache      *simplelru.LRU
 	future     uint64
-	futureItem T
+	futureItem interface{}
 }
 
 // newlru create a new least-recently-used cache for either the verification caches
 // or the mining datasets.
-func newlru[T cacheOrDataset](maxItems int, new func(epoch uint64) T) *lru[T] {
-	var what string
-	switch any(T(nil)).(type) {
-	case *cache:
-		what = "cache"
-	case *dataset:
-		what = "dataset"
-	default:
-		panic("unknown type")
+func newlru(what string, maxItems int, new func(epoch uint64) interface{}) *lru {
+	if maxItems <= 0 {
+		maxItems = 1
 	}
-	return &lru[T]{
-		what:  what,
-		new:   new,
-		cache: lrupkg.NewBasicLRU[uint64, T](maxItems),
-	}
+	cache, _ := simplelru.NewLRU(maxItems, func(key, value interface{}) {
+		log.Trace("Evicted ethash "+what, "epoch", key)
+	})
+	return &lru{what: what, new: new, cache: cache}
 }
 
 // get retrieves or creates an item for the given epoch. The first return value is always
 // non-nil. The second return value is non-nil if lru thinks that an item will be useful in
 // the near future.
-func (lru *lru[T]) get(epoch uint64) (item, future T) {
+func (lru *lru) get(epoch uint64) (item, future interface{}) {
 	lru.mu.Lock()
 	defer lru.mu.Unlock()
 
@@ -237,8 +226,9 @@ type cache struct {
 	once  sync.Once // Ensures the cache is generated only once
 }
 
-// newCache creates a new ethash verification cache.
-func newCache(epoch uint64) *cache {
+// newCache creates a new ethash verification cache and returns it as a plain Go
+// interface to be usable in an LRU cache.
+func newCache(epoch uint64) interface{} {
 	return &cache{epoch: epoch}
 }
 
@@ -318,7 +308,7 @@ type dataset struct {
 
 // newDataset creates a new ethash mining dataset and returns it as a plain Go
 // interface to be usable in an LRU cache.
-func newDataset(epoch uint64) *dataset {
+func newDataset(epoch uint64) interface{} {
 	return &dataset{epoch: epoch}
 }
 
@@ -449,8 +439,8 @@ type Config struct {
 type Ethash struct {
 	config Config
 
-	caches   *lru[*cache]   // In memory caches to avoid regenerating too often
-	datasets *lru[*dataset] // In memory datasets to avoid regenerating too often
+	caches   *lru // In memory caches to avoid regenerating too often
+	datasets *lru // In memory datasets to avoid regenerating too often
 
 	// Mining related fields
 	rand     *rand.Rand    // Properly seeded random source for nonces
@@ -487,8 +477,8 @@ func New(config Config, notify []string, noverify bool) *Ethash {
 	}
 	ethash := &Ethash{
 		config:   config,
-		caches:   newlru(config.CachesInMem, newCache),
-		datasets: newlru(config.DatasetsInMem, newDataset),
+		caches:   newlru("cache", config.CachesInMem, newCache),
+		datasets: newlru("dataset", config.DatasetsInMem, newDataset),
 		update:   make(chan struct{}),
 		hashrate: metrics.NewMeterForced(),
 	}
@@ -583,13 +573,15 @@ func (ethash *Ethash) StopRemoteSealer() error {
 // stored on disk, and finally generating one if none can be found.
 func (ethash *Ethash) cache(block uint64) *cache {
 	epoch := block / epochLength
-	current, future := ethash.caches.get(epoch)
+	currentI, futureI := ethash.caches.get(epoch)
+	current := currentI.(*cache)
 
 	// Wait for generation finish.
 	current.generate(ethash.config.CacheDir, ethash.config.CachesOnDisk, ethash.config.CachesLockMmap, ethash.config.PowMode == ModeTest)
 
 	// If we need a new future cache, now's a good time to regenerate it.
-	if future != nil {
+	if futureI != nil {
+		future := futureI.(*cache)
 		go future.generate(ethash.config.CacheDir, ethash.config.CachesOnDisk, ethash.config.CachesLockMmap, ethash.config.PowMode == ModeTest)
 	}
 	return current
@@ -604,20 +596,25 @@ func (ethash *Ethash) cache(block uint64) *cache {
 func (ethash *Ethash) dataset(block uint64, async bool) *dataset {
 	// Retrieve the requested ethash dataset
 	epoch := block / epochLength
-	current, future := ethash.datasets.get(epoch)
+	currentI, futureI := ethash.datasets.get(epoch)
+	current := currentI.(*dataset)
 
 	// If async is specified, generate everything in a background thread
 	if async && !current.generated() {
 		go func() {
 			current.generate(ethash.config.DatasetDir, ethash.config.DatasetsOnDisk, ethash.config.DatasetsLockMmap, ethash.config.PowMode == ModeTest)
-			if future != nil {
+
+			if futureI != nil {
+				future := futureI.(*dataset)
 				future.generate(ethash.config.DatasetDir, ethash.config.DatasetsOnDisk, ethash.config.DatasetsLockMmap, ethash.config.PowMode == ModeTest)
 			}
 		}()
 	} else {
 		// Either blocking generation was requested, or already done
 		current.generate(ethash.config.DatasetDir, ethash.config.DatasetsOnDisk, ethash.config.DatasetsLockMmap, ethash.config.PowMode == ModeTest)
-		if future != nil {
+
+		if futureI != nil {
+			future := futureI.(*dataset)
 			go future.generate(ethash.config.DatasetDir, ethash.config.DatasetsOnDisk, ethash.config.DatasetsLockMmap, ethash.config.PowMode == ModeTest)
 		}
 	}
@@ -664,7 +661,7 @@ func (ethash *Ethash) Hashrate() float64 {
 	if ethash.config.PowMode != ModeNormal && ethash.config.PowMode != ModeTest {
 		return ethash.hashrate.Rate1()
 	}
-	var res = make(chan uint64, 1)
+	res := make(chan uint64, 1)
 
 	select {
 	case ethash.remote.fetchRateCh <- res:

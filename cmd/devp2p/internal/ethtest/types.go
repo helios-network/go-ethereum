@@ -126,14 +126,8 @@ type NewBlock eth.NewBlockPacket
 func (msg NewBlock) Code() int     { return 23 }
 func (msg NewBlock) ReqID() uint64 { return 0 }
 
-// NewPooledTransactionHashes66 is the network packet for the tx hash propagation message.
-type NewPooledTransactionHashes66 eth.NewPooledTransactionHashesPacket66
-
-func (msg NewPooledTransactionHashes66) Code() int     { return 24 }
-func (msg NewPooledTransactionHashes66) ReqID() uint64 { return 0 }
-
 // NewPooledTransactionHashes is the network packet for the tx hash propagation message.
-type NewPooledTransactionHashes eth.NewPooledTransactionHashesPacket68
+type NewPooledTransactionHashes eth.NewPooledTransactionHashesPacket
 
 func (msg NewPooledTransactionHashes) Code() int     { return 24 }
 func (msg NewPooledTransactionHashes) ReqID() uint64 { return 0 }
@@ -208,13 +202,8 @@ func (c *Conn) Read() Message {
 		msg = new(NewBlockHashes)
 	case (Transactions{}).Code():
 		msg = new(Transactions)
-	case (NewPooledTransactionHashes66{}).Code():
-		// Try decoding to eth68
-		ethMsg := new(NewPooledTransactionHashes)
-		if err := rlp.DecodeBytes(rawData, ethMsg); err == nil {
-			return ethMsg
-		}
-		msg = new(NewPooledTransactionHashes66)
+	case (NewPooledTransactionHashes{}).Code():
+		msg = new(NewPooledTransactionHashes)
 	case (GetPooledTransactions{}.Code()):
 		ethMsg := new(eth.GetPooledTransactionsPacket66)
 		if err := rlp.DecodeBytes(rawData, ethMsg); err != nil {
@@ -278,7 +267,7 @@ func (c *Conn) ReadSnap(id uint64) (Message, error) {
 		case (TrieNodes{}).Code():
 			snpMsg = new(TrieNodes)
 		default:
-			//return nil, fmt.Errorf("invalid message code: %d", code)
+			// return nil, fmt.Errorf("invalid message code: %d", code)
 			continue
 		}
 		if err := rlp.DecodeBytes(rawData, snpMsg); err != nil {

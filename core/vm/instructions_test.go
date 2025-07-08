@@ -20,14 +20,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"math/big"
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
@@ -49,14 +48,6 @@ var (
 	commonParams []*twoOperandParams
 	twoOpMethods map[string]executionFunc
 )
-
-type contractRef struct {
-	addr common.Address
-}
-
-func (c contractRef) Address() common.Address {
-	return c.addr
-}
 
 func init() {
 	// Params is a list of common edgecases that should be used for some common tests
@@ -592,50 +583,6 @@ func BenchmarkOpMstore(bench *testing.B) {
 		stack.Push(value)
 		stack.Push(memStart)
 		opMstore(&pc, evmInterpreter, &ScopeContext{mem, stack, nil})
-	}
-}
-
-func TestOpTstore(t *testing.T) {
-	var (
-		statedb, _     = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-		env            = NewEVM(BlockContext{}, TxContext{}, statedb, params.TestChainConfig, Config{})
-		stack, err     = NewStack()
-		mem            = NewMemory()
-		evmInterpreter = NewEVMInterpreter(env, env.Config)
-		caller         = common.Address{}
-		to             = common.Address{1}
-		contractRef    = contractRef{caller}
-		contract       = NewContract(contractRef, AccountRef(to), new(big.Int), 0)
-		scopeContext   = ScopeContext{mem, stack, contract}
-		value          = common.Hex2Bytes("abcdef00000000000000abba000000000deaf000000c0de00100000000133700")
-	)
-	require.NoError(t, err)
-
-	// Add a stateObject for the caller and the contract being called
-	statedb.CreateAccount(caller)
-	statedb.CreateAccount(to)
-
-	env.interpreter = evmInterpreter
-	pc := uint64(0)
-	// push the value to the stack
-	stack.Push(new(uint256.Int).SetBytes(value))
-	// push the location to the stack
-	stack.Push(new(uint256.Int))
-	opTstore(&pc, evmInterpreter, &scopeContext)
-	// there should be no elements on the stack after TSTORE
-	if stack.Len() != 0 {
-		t.Fatal("stack wrong size")
-	}
-	// push the location to the stack
-	stack.Push(new(uint256.Int))
-	opTload(&pc, evmInterpreter, &scopeContext)
-	// there should be one element on the stack after TLOAD
-	if stack.Len() != 1 {
-		t.Fatal("stack wrong size")
-	}
-	val := stack.Peek()
-	if !bytes.Equal(val.Bytes(), value) {
-		t.Fatal("incorrect element read from transient storage")
 	}
 }
 

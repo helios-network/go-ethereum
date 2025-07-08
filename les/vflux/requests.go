@@ -50,7 +50,7 @@ type (
 		Bias      uint64 // seconds
 		AddTokens []IntOrInf
 	}
-	// CapacityQueryReply is the encoding format of the response to the capacity query
+	// CapacityQueryReq is the encoding format of the response to the capacity query
 	CapacityQueryReply []uint64
 )
 

@@ -25,7 +25,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/core/txpool"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -45,24 +45,30 @@ type doTxNotify struct {
 	peer   string
 	hashes []common.Hash
 }
+
 type doTxEnqueue struct {
 	peer   string
 	txs    []*types.Transaction
 	direct bool
 }
+
 type doWait struct {
 	time time.Duration
 	step bool
 }
-type doDrop string
-type doFunc func()
+type (
+	doDrop string
+	doFunc func()
+)
 
-type isWaiting map[string][]common.Hash
-type isScheduled struct {
-	tracking map[string][]common.Hash
-	fetching map[string][]common.Hash
-	dangling map[string][]common.Hash
-}
+type (
+	isWaiting   map[string][]common.Hash
+	isScheduled struct {
+		tracking map[string][]common.Hash
+		fetching map[string][]common.Hash
+		dangling map[string][]common.Hash
+	}
+)
 type isUnderpriced int
 
 // txFetcherTest represents a test scenario that can be executed by the test
@@ -869,9 +875,9 @@ func TestTransactionFetcherUnderpricedDedup(t *testing.T) {
 					errs := make([]error, len(txs))
 					for i := 0; i < len(errs); i++ {
 						if i%2 == 0 {
-							errs[i] = txpool.ErrUnderpriced
+							errs[i] = core.ErrUnderpriced
 						} else {
-							errs[i] = txpool.ErrReplaceUnderpriced
+							errs[i] = core.ErrReplaceUnderpriced
 						}
 					}
 					return errs
@@ -941,7 +947,7 @@ func TestTransactionFetcherUnderpricedDoSProtection(t *testing.T) {
 				func(txs []*types.Transaction) []error {
 					errs := make([]error, len(txs))
 					for i := 0; i < len(errs); i++ {
-						errs[i] = txpool.ErrUnderpriced
+						errs[i] = core.ErrUnderpriced
 					}
 					return errs
 				},

@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 )
@@ -30,8 +29,8 @@ import (
 // makeTestTrie create a sample test trie to test node-wise reconstruction.
 func makeTestTrie() (*Database, *StateTrie, map[string][]byte) {
 	// Create an empty trie
-	triedb := NewDatabase(rawdb.NewMemoryDatabase())
-	trie, _ := NewStateTrie(TrieID(common.Hash{}), triedb)
+	triedb := NewDatabase(memorydb.New())
+	trie, _ := NewStateTrie(common.Hash{}, common.Hash{}, triedb)
 
 	// Fill it with some arbitrary data
 	content := make(map[string][]byte)
@@ -60,7 +59,7 @@ func makeTestTrie() (*Database, *StateTrie, map[string][]byte) {
 		panic(fmt.Errorf("failed to commit db %v", err))
 	}
 	// Re-create the trie based on the new state
-	trie, _ = NewStateTrie(TrieID(root), triedb)
+	trie, _ = NewSecure(common.Hash{}, root, triedb)
 	return triedb, trie, content
 }
 
@@ -68,7 +67,7 @@ func makeTestTrie() (*Database, *StateTrie, map[string][]byte) {
 // content map.
 func checkTrieContents(t *testing.T, db *Database, root []byte, content map[string][]byte) {
 	// Check root availability and trie contents
-	trie, err := NewStateTrie(TrieID(common.BytesToHash(root)), db)
+	trie, err := NewStateTrie(common.Hash{}, common.BytesToHash(root), db)
 	if err != nil {
 		t.Fatalf("failed to create trie at %x: %v", root, err)
 	}
@@ -85,7 +84,7 @@ func checkTrieContents(t *testing.T, db *Database, root []byte, content map[stri
 // checkTrieConsistency checks that all nodes in a trie are indeed present.
 func checkTrieConsistency(db *Database, root common.Hash) error {
 	// Create and iterate a trie rooted in a subnode
-	trie, err := NewStateTrie(TrieID(root), db)
+	trie, err := NewStateTrie(common.Hash{}, root, db)
 	if err != nil {
 		return nil // Consider a non existent state consistent
 	}
@@ -104,13 +103,13 @@ type trieElement struct {
 
 // Tests that an empty trie is not scheduled for syncing.
 func TestEmptySync(t *testing.T) {
-	dbA := NewDatabase(rawdb.NewMemoryDatabase())
-	dbB := NewDatabase(rawdb.NewMemoryDatabase())
-	emptyA, _ := New(TrieID(common.Hash{}), dbA)
-	emptyB, _ := New(TrieID(emptyRoot), dbB)
+	dbA := NewDatabase(memorydb.New())
+	dbB := NewDatabase(memorydb.New())
+	emptyA := NewEmpty(dbA)
+	emptyB, _ := New(common.Hash{}, emptyRoot, dbB)
 
 	for i, trie := range []*Trie{emptyA, emptyB} {
-		sync := NewSync(trie.Hash(), memorydb.New(), nil, []*Database{dbA, dbB}[i].Scheme())
+		sync := NewSync(trie.Hash(), memorydb.New(), nil)
 		if paths, nodes, codes := sync.Missing(1); len(paths) != 0 || len(nodes) != 0 || len(codes) != 0 {
 			t.Errorf("test %d: content requested for empty trie: %v, %v, %v", i, paths, nodes, codes)
 		}
@@ -129,9 +128,9 @@ func testIterativeSync(t *testing.T, count int, bypath bool) {
 	srcDb, srcTrie, srcData := makeTestTrie()
 
 	// Create a destination trie and sync with the scheduler
-	diskdb := rawdb.NewMemoryDatabase()
+	diskdb := memorydb.New()
 	triedb := NewDatabase(diskdb)
-	sched := NewSync(srcTrie.Hash(), diskdb, nil, srcDb.Scheme())
+	sched := NewSync(srcTrie.Hash(), diskdb, nil)
 
 	// The code requests are ignored here since there is no code
 	// at the testing trie.
@@ -195,9 +194,9 @@ func TestIterativeDelayedSync(t *testing.T) {
 	srcDb, srcTrie, srcData := makeTestTrie()
 
 	// Create a destination trie and sync with the scheduler
-	diskdb := rawdb.NewMemoryDatabase()
+	diskdb := memorydb.New()
 	triedb := NewDatabase(diskdb)
-	sched := NewSync(srcTrie.Hash(), diskdb, nil, srcDb.Scheme())
+	sched := NewSync(srcTrie.Hash(), diskdb, nil)
 
 	// The code requests are ignored here since there is no code
 	// at the testing trie.
@@ -256,9 +255,9 @@ func testIterativeRandomSync(t *testing.T, count int) {
 	srcDb, srcTrie, srcData := makeTestTrie()
 
 	// Create a destination trie and sync with the scheduler
-	diskdb := rawdb.NewMemoryDatabase()
+	diskdb := memorydb.New()
 	triedb := NewDatabase(diskdb)
-	sched := NewSync(srcTrie.Hash(), diskdb, nil, srcDb.Scheme())
+	sched := NewSync(srcTrie.Hash(), diskdb, nil)
 
 	// The code requests are ignored here since there is no code
 	// at the testing trie.
@@ -314,9 +313,9 @@ func TestIterativeRandomDelayedSync(t *testing.T) {
 	srcDb, srcTrie, srcData := makeTestTrie()
 
 	// Create a destination trie and sync with the scheduler
-	diskdb := rawdb.NewMemoryDatabase()
+	diskdb := memorydb.New()
 	triedb := NewDatabase(diskdb)
-	sched := NewSync(srcTrie.Hash(), diskdb, nil, srcDb.Scheme())
+	sched := NewSync(srcTrie.Hash(), diskdb, nil)
 
 	// The code requests are ignored here since there is no code
 	// at the testing trie.
@@ -377,9 +376,9 @@ func TestDuplicateAvoidanceSync(t *testing.T) {
 	srcDb, srcTrie, srcData := makeTestTrie()
 
 	// Create a destination trie and sync with the scheduler
-	diskdb := rawdb.NewMemoryDatabase()
+	diskdb := memorydb.New()
 	triedb := NewDatabase(diskdb)
-	sched := NewSync(srcTrie.Hash(), diskdb, nil, srcDb.Scheme())
+	sched := NewSync(srcTrie.Hash(), diskdb, nil)
 
 	// The code requests are ignored here since there is no code
 	// at the testing trie.
@@ -440,9 +439,9 @@ func TestIncompleteSync(t *testing.T) {
 	srcDb, srcTrie, _ := makeTestTrie()
 
 	// Create a destination trie and sync with the scheduler
-	diskdb := rawdb.NewMemoryDatabase()
+	diskdb := memorydb.New()
 	triedb := NewDatabase(diskdb)
-	sched := NewSync(srcTrie.Hash(), diskdb, nil, srcDb.Scheme())
+	sched := NewSync(srcTrie.Hash(), diskdb, nil)
 
 	// The code requests are ignored here since there is no code
 	// at the testing trie.
@@ -520,9 +519,9 @@ func TestSyncOrdering(t *testing.T) {
 	srcDb, srcTrie, srcData := makeTestTrie()
 
 	// Create a destination trie and sync with the scheduler, tracking the requests
-	diskdb := rawdb.NewMemoryDatabase()
+	diskdb := memorydb.New()
 	triedb := NewDatabase(diskdb)
-	sched := NewSync(srcTrie.Hash(), diskdb, nil, srcDb.Scheme())
+	sched := NewSync(srcTrie.Hash(), diskdb, nil)
 
 	// The code requests are ignored here since there is no code
 	// at the testing trie.

@@ -321,11 +321,10 @@ func TestGraphQLTransactionLogs(t *testing.T) {
 
 func createNode(t *testing.T) *node.Node {
 	stack, err := node.New(&node.Config{
-		HTTPHost:     "127.0.0.1",
-		HTTPPort:     0,
-		WSHost:       "127.0.0.1",
-		WSPort:       0,
-		HTTPTimeouts: node.DefaultConfig.HTTPTimeouts,
+		HTTPHost: "127.0.0.1",
+		HTTPPort: 0,
+		WSHost:   "127.0.0.1",
+		WSPort:   0,
 	})
 	if err != nil {
 		t.Fatalf("could not create node: %v", err)

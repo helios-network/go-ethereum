@@ -90,7 +90,7 @@ func (s *Suite) TestSnapGetAccountRange(t *utesting.T) {
 		{4000, s.chain.RootAt(0), zero, ffHash, 0, zero, zero},
 		// A 127 block old stateroot, expected to be served
 		{4000, s.chain.RootAt(999 - 127), zero, ffHash, 77, firstKey, common.HexToHash("0xe4c6fdef5dd4e789a2612390806ee840b8ec0fe52548f8b4efe41abb20c37aac")},
-		// A root which is not actually an account root, but a storage root
+		// A root which is not actually an account root, but a storage orot
 		{4000, storageRoot, zero, ffHash, 0, zero, zero},
 
 		// And some non-sensical requests
@@ -121,7 +121,7 @@ type stRangesTest struct {
 	expSlots int
 }
 
-// TestSnapGetStorageRanges various forms of GetStorageRanges requests.
+// TestSnapGetStorageRange various forms of GetStorageRanges requests.
 func (s *Suite) TestSnapGetStorageRanges(t *utesting.T) {
 	var (
 		ffHash    = common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
@@ -322,7 +322,7 @@ func hasTerm(s []byte) bool {
 
 func keybytesToHex(str []byte) []byte {
 	l := len(str)*2 + 1
-	var nibbles = make([]byte, l)
+	nibbles := make([]byte, l)
 	for i, b := range str {
 		nibbles[i*2] = b / 16
 		nibbles[i*2+1] = b % 16
@@ -388,14 +388,16 @@ func (s *Suite) TestSnapTrieNodes(t *utesting.T) {
 				{[]byte{1}, []byte{0}},
 			},
 			nBytes: 5000,
-			//0x6b3724a41b8c38b46d4d02fba2bb2074c47a507eb16a9a4b978f91d32e406faf
+			// 0x6b3724a41b8c38b46d4d02fba2bb2074c47a507eb16a9a4b978f91d32e406faf
 			expHashes: []common.Hash{s.chain.RootAt(999)},
 		},
 		{ // nonsensically long path
 			root: s.chain.RootAt(999),
 			paths: []snap.TrieNodePathSet{
-				{[]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
-					0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8}},
+				{[]byte{
+					0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+					0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+				}},
 			},
 			nBytes:    5000,
 			expHashes: []common.Hash{common.HexToHash("0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")},
@@ -406,10 +408,8 @@ func (s *Suite) TestSnapTrieNodes(t *utesting.T) {
 				{[]byte{0}},
 				{[]byte{1}, []byte{0}},
 			},
-			nBytes: 5000,
-			expHashes: []common.Hash{
-				common.HexToHash("0x1ee1bb2fbac4d46eab331f3e8551e18a0805d084ed54647883aa552809ca968d"),
-			},
+			nBytes:    5000,
+			expHashes: []common.Hash{},
 		},
 		{
 			// The leaf is only a couple of levels down, so the continued trie traversal causes lookup failures.
@@ -424,7 +424,8 @@ func (s *Suite) TestSnapTrieNodes(t *utesting.T) {
 				empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty,
 				empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty,
 				empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty,
-				empty, empty, empty},
+				empty, empty, empty,
+			},
 		},
 		{
 			// Basically the same as above, with different ordering
@@ -439,35 +440,7 @@ func (s *Suite) TestSnapTrieNodes(t *utesting.T) {
 				common.HexToHash("0xbcefee69b37cca1f5bf3a48aebe08b35f2ea1864fa958bb0723d909a0e0d28d8"),
 			},
 		},
-		{
-			/*
-				A test against this account, requesting trie nodes for the storage trie
-				{
-				  "balance": "0",
-				  "nonce": 1,
-				  "root": "0xbe3d75a1729be157e79c3b77f00206db4d54e3ea14375a015451c88ec067c790",
-				  "codeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-				  "storage": {
-				    "0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace": "02",
-				    "0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6": "01",
-				    "0xc2575a0e9e593c00f959f8c92f12db2869c3395a3b0502d05e2516446f71f85b": "03"
-				  },
-				  "key": "0xf493f79c43bd747129a226ad42529885a4b108aba6046b2d12071695a6627844"
-				}
-			*/
-			root: s.chain.RootAt(999),
-			paths: []snap.TrieNodePathSet{
-				{
-					common.FromHex("0xf493f79c43bd747129a226ad42529885a4b108aba6046b2d12071695a6627844"),
-					[]byte{0},
-				},
-			},
-			nBytes: 5000,
-			expHashes: []common.Hash{
-				common.HexToHash("0xbe3d75a1729be157e79c3b77f00206db4d54e3ea14375a015451c88ec067c790"),
-			},
-		},
-	}[7:] {
+	} {
 		tc := tc
 		if err := s.snapGetTrieNodes(t, &tc); err != nil {
 			t.Errorf("test %d \n #hashes %x\n root: %#x\n bytes: %d\nfailed: %v", i, len(tc.expHashes), tc.root, tc.nBytes, err)

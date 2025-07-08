@@ -76,7 +76,7 @@ func (c *Chain) RootAt(height int) common.Hash {
 
 // ForkID gets the fork id of the chain.
 func (c *Chain) ForkID() forkid.ID {
-	return forkid.NewID(c.chainConfig, c.blocks[0].Hash(), uint64(c.Len()), c.blocks[0].Time())
+	return forkid.NewID(c.chainConfig, c.blocks[0].Hash(), uint64(c.Len()))
 }
 
 // Shorten returns a copy chain of a desired height from the imported
@@ -176,7 +176,7 @@ func blocksFromFile(chainfile string, gblock *types.Block) ([]*types.Block, erro
 		}
 	}
 	stream := rlp.NewStream(reader, 0)
-	var blocks = make([]*types.Block, 1)
+	blocks := make([]*types.Block, 1)
 	blocks[0] = gblock
 	for i := 0; ; i++ {
 		var b types.Block

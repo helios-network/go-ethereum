@@ -34,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/internal/jsre"
 	"github.com/ethereum/go-ethereum/internal/jsre/deps"
 	"github.com/ethereum/go-ethereum/internal/web3ext"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/mattn/go-colorable"
 	"github.com/peterh/liner"
@@ -112,7 +111,7 @@ func New(config Config) (*Console, error) {
 		signalReceived:     make(chan struct{}, 1),
 		stopped:            make(chan struct{}),
 	}
-	if err := os.MkdirAll(config.DataDir, 0700); err != nil {
+	if err := os.MkdirAll(config.DataDir, 0o700); err != nil {
 		return nil, err
 	}
 	if err := console.init(config.Preload); err != nil {
@@ -199,22 +198,13 @@ func (c *Console) initWeb3(bridge *bridge) error {
 	return err
 }
 
-var defaultAPIs = map[string]string{"eth": "1.0", "net": "1.0", "debug": "1.0"}
-
 // initExtensions loads and registers web3.js extensions.
 func (c *Console) initExtensions() error {
-	const methodNotFound = -32601
+	// Compute aliases from server-provided modules.
 	apis, err := c.client.SupportedModules()
 	if err != nil {
-		if rpcErr, ok := err.(rpc.Error); ok && rpcErr.ErrorCode() == methodNotFound {
-			log.Warn("Server does not support method rpc_modules, using default API list.")
-			apis = defaultAPIs
-		} else {
-			return err
-		}
+		return fmt.Errorf("api modules: %v", err)
 	}
-
-	// Compute aliases from server-provided modules.
 	aliases := map[string]struct{}{"eth": {}, "personal": {}}
 	for api := range apis {
 		if api == "web3" {
@@ -563,8 +553,8 @@ func (c *Console) Stop(graceful bool) error {
 }
 
 func (c *Console) writeHistory() error {
-	if err := os.WriteFile(c.histPath, []byte(strings.Join(c.history, "\n")), 0600); err != nil {
+	if err := os.WriteFile(c.histPath, []byte(strings.Join(c.history, "\n")), 0o600); err != nil {
 		return err
 	}
-	return os.Chmod(c.histPath, 0600) // Force 0600, even if it was different previously
+	return os.Chmod(c.histPath, 0o600) // Force 0600, even if it was different previously
 }

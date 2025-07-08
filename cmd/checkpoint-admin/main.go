@@ -28,9 +28,16 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var app = flags.NewApp("ethereum checkpoint helper tool")
+var (
+	// Git SHA1 commit hash of the release (set via linker flags)
+	gitCommit = ""
+	gitDate   = ""
+
+	app *cli.App
+)
 
 func init() {
+	app = flags.NewApp(gitCommit, gitDate, "ethereum checkpoint helper tool")
 	app.Commands = []*cli.Command{
 		commandStatus,
 		commandDeploy,

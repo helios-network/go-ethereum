@@ -230,7 +230,7 @@ func TestT8n(t *testing.T) {
 		{ // Test post-merge transition
 			base: "./testdata/24",
 			input: t8nInput{
-				"alloc.json", "txs.json", "env.json", "Merge", "",
+				"alloc.json", "txs.json", "env.json", "Merged", "",
 			},
 			output: t8nOutput{alloc: true, result: true},
 			expOut: "exp.json",
@@ -238,18 +238,10 @@ func TestT8n(t *testing.T) {
 		{ // Test post-merge transition where input is missing random
 			base: "./testdata/24",
 			input: t8nInput{
-				"alloc.json", "txs.json", "env-missingrandom.json", "Merge", "",
+				"alloc.json", "txs.json", "env-missingrandom.json", "Merged", "",
 			},
 			output:      t8nOutput{alloc: false, result: false},
 			expExitCode: 3,
-		},
-		{ // Test base fee calculation
-			base: "./testdata/25",
-			input: t8nInput{
-				"alloc.json", "txs.json", "env.json", "Merge", "",
-			},
-			output: t8nOutput{alloc: true, result: true},
-			expOut: "exp.json",
 		},
 	} {
 		args := []string{"t8n"}
