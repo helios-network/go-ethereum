@@ -1,4 +1,4 @@
-VERSION=${VERSION:-"v1.10.26"}
+VERSION=${VERSION:-"v1.10.27"}
 
 echo "Deploy go-ethereum"
 git add .
@@ -7,6 +7,6 @@ git push
 git tag $VERSION
 git push origin $VERSION
 sleep 5
-GOPROXY=proxy.golang.org go list -m github.com/Helios-Chain-Labs/go-ethereum@$VERSION
+GOPROXY=proxy.golang.org go list -m github.com/helios-network/go-ethereum@$VERSION
 
 echo "Publish done"
