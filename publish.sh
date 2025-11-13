@@ -1,4 +1,4 @@
-VERSION=${VERSION:-"v1.10.26-rc4"}
+VERSION=${VERSION:-"v1.10.26"}
 
 echo "Deploy go-ethereum"
 git add .
